@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
+  DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   useDraggable,
   useDroppable,
@@ -254,14 +256,40 @@ function IssueCard({
     </article>
   );
 }
+
+function IssueCardPreview({ issue }: { issue: Issue }) {
+  return (
+    <article className="issue-card drag-preview" aria-hidden="true">
+      <div className="issue-meta">
+        <span>{issue.id}</span>
+        <MoreHorizontal />
+      </div>
+      <h3>{issue.title}</h3>
+      <div className="labels">
+        {issue.labels.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </div>
+      <div className="issue-footer">
+        <div>
+          <Priority value={issue.priority} />
+          <span className="estimate">{issue.estimate}</span>
+        </div>
+        <Avatar initials={issue.assignee} small />
+      </div>
+    </article>
+  );
+}
 function BoardColumn({
   status,
   issues,
   onOpen,
+  onAdd,
 }: {
   status: Status;
   issues: Issue[];
   onOpen: (i: Issue) => void;
+  onAdd: () => void;
 }) {
   const d = useDroppable({ id: status });
   return (
@@ -277,12 +305,20 @@ function BoardColumn({
           <strong>{status}</strong>
           <span>{issues.length}</span>
         </div>
-        <Plus />
+        <button onClick={onAdd} aria-label={`Add issue to ${status}`}>
+          <Plus />
+        </button>
       </header>
       <div className="cards">
         {issues.map((i) => (
           <IssueCard key={i.id} issue={i} onOpen={onOpen} />
         ))}
+        {issues.length === 0 && (
+          <button className="empty-column" onClick={onAdd}>
+            <Plus />
+            Add the first issue
+          </button>
+        )}
       </div>
     </section>
   );
@@ -298,9 +334,14 @@ export function OrbitWorkspace() {
     [create, setCreate] = useState(false),
     [selected, setSelected] = useState<Issue | null>(null),
     [query, setQuery] = useState(''),
-    [title, setTitle] = useState('');
+    [title, setTitle] = useState(''),
+    [filterOpen, setFilterOpen] = useState(false),
+    [statusFilter, setStatusFilter] = useState<Status | 'All'>('All'),
+    [assigneeFilter, setAssigneeFilter] = useState('All');
+  const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor),
   );
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -325,18 +366,28 @@ export function OrbitWorkspace() {
   }, [dark]);
   const filtered = useMemo(
     () =>
-      issues.filter((i) =>
-        `${i.id} ${i.title} ${i.project} ${i.labels.join(' ')}`
-          .toLowerCase()
-          .includes(query.toLowerCase()),
-      ),
-    [issues, query],
+      issues.filter((i) => {
+        const matchesQuery =
+          `${i.id} ${i.title} ${i.project} ${i.labels.join(' ')}`
+            .toLowerCase()
+            .includes(query.toLowerCase());
+        return (
+          matchesQuery &&
+          (statusFilter === 'All' || i.status === statusFilter) &&
+          (assigneeFilter === 'All' || i.assignee === assigneeFilter)
+        );
+      }),
+    [issues, query, statusFilter, assigneeFilter],
   );
   const done = issues.filter((i) => i.status === 'Done').length,
-    progress = Math.round((done / issues.length) * 100);
+    progress = Math.round((done / issues.length) * 100),
+    points = issues.reduce((sum, issue) => sum + issue.estimate, 0),
+    activeFilters =
+      Number(statusFilter !== 'All') + Number(assigneeFilter !== 'All');
   const move = (e: DragEndEvent) => {
     const status = e.over?.id as Status | undefined,
       id = e.active.id as string;
+    setActiveIssue(null);
     if (!status || !columns.includes(status)) return;
     setIssues((x) =>
       x.map((i) => (i.id === id ? { ...i, status, updated: 'now' } : i)),
@@ -373,6 +424,47 @@ export function OrbitWorkspace() {
     setView(v);
     setMobile(false);
   };
+  const updateSelected = (change: Partial<Issue>) => {
+    if (!selected) return;
+    const next = { ...selected, ...change, updated: 'now' };
+    setIssues((items) =>
+      items.map((item) => (item.id === selected.id ? next : item)),
+    );
+    setSelected(next);
+  };
+  const duplicateSelected = () => {
+    if (!selected) return;
+    const copy = {
+      ...selected,
+      id: `ORB-${150 + issues.length}`,
+      title: `${selected.title} (copy)`,
+      updated: 'now',
+    };
+    setIssues((items) => [copy, ...items]);
+    setSelected(copy);
+    toast.add({
+      title: 'Issue duplicated',
+      description: `${copy.id} is ready to edit.`,
+      type: 'success',
+    });
+  };
+  const deleteSelected = () => {
+    if (!selected) return;
+    setIssues((items) => items.filter((item) => item.id !== selected.id));
+    toast.add({
+      title: 'Issue deleted',
+      description: `${selected.id} was removed from this demo.`,
+      type: 'success',
+    });
+    setSelected(null);
+  };
+  const demoNotice = (feature: string) =>
+    toast.add({
+      title: `${feature} preview`,
+      description:
+        'This portfolio demo keeps the experience local and reversible.',
+      type: 'success',
+    });
   const heading =
     view === 'board'
       ? 'Build the next orbit'
@@ -390,7 +482,11 @@ export function OrbitWorkspace() {
         <aside
           className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobile ? 'mobile-open' : ''}`}
         >
-          <div className="workspace">
+          <button
+            className="workspace"
+            onClick={() => demoNotice('Workspace switcher')}
+            aria-label="Switch workspace"
+          >
             <div className="orbit-mark">
               <i />
               <i />
@@ -399,17 +495,18 @@ export function OrbitWorkspace() {
             {!collapsed && (
               <div>
                 <strong>Orbit Labs</strong>
-                <span>Product workspace</span>
+                <span>Product workspace · Demo</span>
               </div>
             )}
             <ChevronDown className="chevron" />
-          </div>
+          </button>
           <nav>
             {nav.map((n) => (
               <button
                 key={n.label}
                 className={n.view === view ? 'active' : ''}
-                onClick={() => n.view && choose(n.view)}
+                aria-current={n.view === view ? 'page' : undefined}
+                onClick={() => (n.view ? choose(n.view) : demoNotice(n.label))}
               >
                 <n.icon />
                 <span>{n.label}</span>
@@ -433,13 +530,13 @@ export function OrbitWorkspace() {
               {dark ? <Sun /> : <Moon />}
               <span>{dark ? 'Light mode' : 'Dark mode'}</span>
             </button>
-            <button>
+            <button onClick={() => demoNotice('Settings')}>
               <Settings />
               <span>Settings</span>
             </button>
           </div>
           <button
-            className="collapse"
+            className="sidebar-collapse"
             onClick={() => setCollapsed((v) => !v)}
             aria-label="Collapse sidebar"
           >
@@ -476,10 +573,17 @@ export function OrbitWorkspace() {
               <kbd>⌘ K</kbd>
             </button>
             <div className="top-actions">
-              <button>
+              <button
+                onClick={() => demoNotice('Activity')}
+                aria-label="Open activity"
+              >
                 <Activity />
               </button>
-              <button className="notification">
+              <button
+                className="notification"
+                onClick={() => choose('inbox')}
+                aria-label="Open notifications"
+              >
                 <Bell />
                 <i />
               </button>
@@ -526,7 +630,7 @@ export function OrbitWorkspace() {
                   </div>
                   <div className="cycle-metrics">
                     <div>
-                      <b>23</b>
+                      <b>{points}</b>
                       <span>points</span>
                     </div>
                     <div>
@@ -553,20 +657,75 @@ export function OrbitWorkspace() {
                     </button>
                   </div>
                   <div className="view-tools">
-                    <button>
+                    <button
+                      onClick={() => setFilterOpen((value) => !value)}
+                      aria-expanded={filterOpen}
+                    >
                       <Filter />
-                      Filter
+                      Filter {activeFilters > 0 && <b>{activeFilters}</b>}
                     </button>
-                    <button>
+                    <button
+                      className={assigneeFilter !== 'All' ? 'is-active' : ''}
+                      onClick={() => setFilterOpen(true)}
+                    >
                       <Users />
                       Assignee
                     </button>
-                    <button>
+                    <button
+                      onClick={() => demoNotice('Board options')}
+                      aria-label="Board options"
+                    >
                       <MoreHorizontal />
                     </button>
                   </div>
                 </div>
-                <DndContext id="orbit-board" sensors={sensors} onDragEnd={move}>
+                {filterOpen && (
+                  <div className="filter-panel" aria-label="Issue filters">
+                    <label>
+                      Status
+                      <select
+                        value={statusFilter}
+                        onChange={(e) =>
+                          setStatusFilter(e.target.value as Status | 'All')
+                        }
+                      >
+                        <option>All</option>
+                        {columns.map((status) => (
+                          <option key={status}>{status}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Assignee
+                      <select
+                        value={assigneeFilter}
+                        onChange={(e) => setAssigneeFilter(e.target.value)}
+                      >
+                        <option>All</option>
+                        {Object.keys(colors).map((person) => (
+                          <option key={person}>{person}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      onClick={() => {
+                        setStatusFilter('All');
+                        setAssigneeFilter('All');
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
+                <DndContext
+                  id="orbit-board"
+                  sensors={sensors}
+                  onDragStart={(event) =>
+                    setActiveIssue(event.active.data.current?.issue ?? null)
+                  }
+                  onDragCancel={() => setActiveIssue(null)}
+                  onDragEnd={move}
+                >
                   <div className="board">
                     {columns.map((s) => (
                       <BoardColumn
@@ -574,9 +733,20 @@ export function OrbitWorkspace() {
                         status={s}
                         issues={filtered.filter((i) => i.status === s)}
                         onOpen={setSelected}
+                        onAdd={() => setCreate(true)}
                       />
                     ))}
                   </div>
+                  <DragOverlay
+                    dropAnimation={{
+                      duration: 180,
+                      easing: 'cubic-bezier(.2,.8,.2,1)',
+                    }}
+                  >
+                    {activeIssue ? (
+                      <IssueCardPreview issue={activeIssue} />
+                    ) : null}
+                  </DragOverlay>
                 </DndContext>
               </>
             )}
@@ -586,6 +756,7 @@ export function OrbitWorkspace() {
                 query={query}
                 setQuery={setQuery}
                 onOpen={setSelected}
+                onBoard={() => setView('board')}
               />
             )}{' '}
             {view === 'roadmap' && <Roadmap />}
@@ -631,6 +802,35 @@ export function OrbitWorkspace() {
                 <CommandItem onSelect={() => setDark((v) => !v)}>
                   {dark ? <Sun /> : <Moon />}Toggle theme
                 </CommandItem>
+                <CommandItem
+                  onSelect={() => {
+                    setCommands(false);
+                    setView('list');
+                  }}
+                >
+                  <Search />
+                  Search all issues
+                </CommandItem>
+              </CommandGroup>
+              <CommandGroup heading="Recent issues">
+                {issues.slice(0, 5).map((issue) => (
+                  <CommandItem
+                    key={issue.id}
+                    value={`${issue.id} ${issue.title}`}
+                    onSelect={() => {
+                      setCommands(false);
+                      setSelected(issue);
+                    }}
+                  >
+                    <CircleDot />
+                    <span className="command-issue">
+                      <strong>{issue.title}</strong>
+                      <small>
+                        {issue.id} · {issue.status}
+                      </small>
+                    </span>
+                  </CommandItem>
+                ))}
               </CommandGroup>
             </CommandList>
           </Command>
@@ -650,17 +850,17 @@ export function OrbitWorkspace() {
               placeholder="Issue title"
             />
             <div className="quick-fields">
-              <button>
+              <button onClick={() => demoNotice('Status picker')}>
                 <CircleDot />
                 Todo
                 <ChevronDown />
               </button>
-              <button>
+              <button onClick={() => demoNotice('Priority picker')}>
                 <Zap />
                 Medium
                 <ChevronDown />
               </button>
-              <button>
+              <button onClick={() => demoNotice('Assignee picker')}>
                 <Avatar initials="VK" small />
                 Victor
                 <ChevronDown />
@@ -681,16 +881,37 @@ export function OrbitWorkspace() {
             {selected && (
               <>
                 <div className="issue-dialog-top">
-                  <span>{selected.id}</span>
+                  <div className="issue-identity">
+                    <span>{selected.id}</span>
+                    <i
+                      className={`status-dot status-${selected.status.replace(' ', '-').toLowerCase()}`}
+                    />
+                    <strong>{selected.status}</strong>
+                  </div>
                   <div>
-                    <MoreHorizontal />
-                    <button onClick={() => setSelected(null)}>
+                    <button onClick={duplicateSelected}>Duplicate</button>
+                    <button className="danger-action" onClick={deleteSelected}>
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => setSelected(null)}
+                      aria-label="Close issue"
+                    >
                       <X />
                     </button>
                   </div>
                 </div>
                 <DialogHeader>
-                  <DialogTitle>{selected.title}</DialogTitle>
+                  <DialogTitle>
+                    <input
+                      className="issue-title-input"
+                      value={selected.title}
+                      onChange={(e) =>
+                        updateSelected({ title: e.target.value })
+                      }
+                      aria-label="Issue title"
+                    />
+                  </DialogTitle>
                   <DialogDescription>
                     {selected.project} · updated {selected.updated} ago
                   </DialogDescription>
@@ -720,6 +941,14 @@ export function OrbitWorkspace() {
                       </p>
                       <small>12m</small>
                     </div>
+                    <div className="activity-row muted-event">
+                      <span className="timeline-dot" />
+                      <p>
+                        <strong>Orbit automation</strong> added{' '}
+                        <span>{selected.labels[0]}</span>
+                      </p>
+                      <small>18m</small>
+                    </div>
                     <div className="comment-box">
                       <MessageSquare />
                       <input placeholder="Leave a comment…" />
@@ -730,16 +959,50 @@ export function OrbitWorkspace() {
                       icon={CircleDot}
                       label="Status"
                       value={selected.status}
+                      onClick={() =>
+                        updateSelected({
+                          status:
+                            columns[
+                              (columns.indexOf(selected.status) + 1) %
+                                columns.length
+                            ],
+                        })
+                      }
                     />
                     <Property
                       icon={Zap}
                       label="Priority"
                       value={selected.priority}
+                      onClick={() => {
+                        const values: Issue['priority'][] = [
+                          'Low',
+                          'Medium',
+                          'High',
+                          'Urgent',
+                        ];
+                        updateSelected({
+                          priority:
+                            values[
+                              (values.indexOf(selected.priority) + 1) %
+                                values.length
+                            ],
+                        });
+                      }}
                     />
                     <Property
                       icon={Users}
                       label="Assignee"
                       value={selected.assignee}
+                      onClick={() => {
+                        const values = Object.keys(colors);
+                        updateSelected({
+                          assignee:
+                            values[
+                              (values.indexOf(selected.assignee) + 1) %
+                                values.length
+                            ],
+                        });
+                      }}
                     />
                     <Property
                       icon={Rocket}
@@ -765,13 +1028,15 @@ function Property({
   icon: Icon,
   label,
   value,
+  onClick,
 }: {
   icon: typeof CircleDot;
   label: string;
   value: string;
+  onClick?: () => void;
 }) {
   return (
-    <button className="property">
+    <button className="property" onClick={onClick}>
       <span>
         <Icon />
         {label}
@@ -785,15 +1050,39 @@ function ListView({
   query,
   setQuery,
   onOpen,
+  onBoard,
 }: {
   issues: Issue[];
   query: string;
   setQuery: (v: string) => void;
   onOpen: (i: Issue) => void;
+  onBoard: () => void;
 }) {
+  const [sort, setSort] = useState<'updated' | 'priority'>('updated');
+  const priorities: Record<Issue['priority'], number> = {
+    Low: 1,
+    Medium: 2,
+    High: 3,
+    Urgent: 4,
+  };
+  const rows = [...issues].sort((a, b) =>
+    sort === 'priority'
+      ? priorities[b.priority] - priorities[a.priority]
+      : a.updated.localeCompare(b.updated),
+  );
   return (
     <div className="list-panel">
       <div className="list-toolbar">
+        <div className="view-tabs">
+          <button onClick={onBoard}>
+            <Layers3 />
+            Board
+          </button>
+          <button className="active">
+            <List />
+            List
+          </button>
+        </div>
         <div className="input-search">
           <Search />
           <input
@@ -802,9 +1091,12 @@ function ListView({
             placeholder="Filter issues…"
           />
         </div>
-        <Button variant="outline">
+        <Button
+          variant="outline"
+          onClick={() => setSort(sort === 'updated' ? 'priority' : 'updated')}
+        >
           <Filter />
-          Filter
+          Sort: {sort}
         </Button>
       </div>
       <div className="issue-table">
@@ -816,7 +1108,7 @@ function ListView({
           <span>Project</span>
           <span>Updated</span>
         </div>
-        {issues.map((i) => (
+        {rows.map((i) => (
           <button key={i.id} className="table-row" onClick={() => onOpen(i)}>
             <span>
               <input type="checkbox" onClick={(e) => e.stopPropagation()} />
@@ -841,6 +1133,13 @@ function ListView({
             <span>{i.updated}</span>
           </button>
         ))}
+        {rows.length === 0 && (
+          <div className="empty-list">
+            <Search />
+            <strong>No issues found</strong>
+            <span>Try clearing your search or filters.</span>
+          </div>
+        )}
       </div>
     </div>
   );

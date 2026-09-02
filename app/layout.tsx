@@ -14,20 +14,27 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://orbit-project-ops.vercel.app',
   ),
+  alternates: { canonical: '/' },
   title: 'Orbit — Project operations, in flow',
-  description: 'A focused project management workspace for teams that move fast.',
+  description:
+    'A focused project management workspace for teams that move fast.',
   openGraph: {
+    type: 'website',
+    url: '/',
+    siteName: 'Orbit',
     title: 'Orbit — Project operations, in flow',
-    description: 'A focused project management workspace for teams that move fast.',
-    images: ['/og.png'],
+    description:
+      'A focused project management workspace for teams that move fast.',
+    images: ['/opengraph-image'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Orbit — Project operations, in flow',
-    description: 'A focused project management workspace for teams that move fast.',
-    images: ['/og.png'],
+    description:
+      'A focused project management workspace for teams that move fast.',
+    images: ['/opengraph-image'],
   },
 };
 

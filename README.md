@@ -1,63 +1,67 @@
 # Orbit
 
-Orbit is a portfolio-grade project operations workspace inspired by the speed of Linear, the flexibility of Notion, and the planning depth of modern issue trackers—without cloning any of them.
+Orbit is a portfolio-grade project operations workspace: fast enough for daily issue work, calm enough for planning, and original in its visual language.
 
-## Product surface
+**Live demo:** [orbit-project-ops.vercel.app](https://orbit-project-ops.vercel.app)
 
-- Responsive Kanban with real pointer drag-and-drop and optimistic feedback
-- Dense issue list, filtering, roadmap timeline, projects and notification inbox
-- Rich issue detail with properties, subtasks, activity and comments
+## Highlights
+
+- Responsive Kanban with pointer and keyboard drag-and-drop, drop feedback and optimistic updates
+- Searchable/sortable issue list plus status and assignee filters
+- Rich issue detail with editable title/properties, subtasks, activity, duplicate and delete actions
 - Global command palette (`Ctrl/Cmd + K`) and quick-create shortcut (`C`)
-- Light/dark themes, mobile drawer, accessible focus states and reduced-motion support
-- Professional Orbit Labs demo workspace with realistic projects and issues
+- Projects, roadmap, notification inbox, themes and mobile navigation
+- Real cycle completion and point totals derived from issue data
+- Custom social card, canonical metadata, 404 and production security headers
 
-## Stack
+## Stack and architecture
 
-- React 19, TypeScript, Vinext/Next-compatible App Router
-- Tailwind CSS 4 and shadcn primitives
-- dnd-kit for accessible drag-and-drop
-- Supabase SSR/client packages, PostgreSQL schema, RLS and Realtime publication
-- Zod and React Hook Form available for production forms
+Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4, shadcn primitives, dnd-kit and Supabase-ready data boundaries.
 
-## Architecture
+The deployed portfolio uses local client state so reviewers can safely explore every mutation without an account. The production-ready PostgreSQL/RLS contract is versioned in `supabase/migrations`, and Supabase clients live in `lib/supabase`.
 
-The current portfolio experience is intentionally demo-ready without credentials: product interactions use client state so reviewers can explore immediately. The Supabase boundary lives in `lib/supabase`, while the production database contract is versioned under `supabase/migrations`. Supplying the two public environment variables activates the hosted client without exposing privileged keys.
+## Run locally
 
-## Database and security
+```bash
+pnpm install
+pnpm dev
+```
 
-The foundation migration models profiles, workspaces, role-based membership, teams, projects, cycles, issues, labels, comments, activities and notifications. Public tables have RLS enabled. Issue read/write policies require workspace membership, write policies restrict guests, and Realtime is enabled only for issues, comments and notifications.
+Optional Supabase variables are documented in `.env.example`. Never expose a service-role key through a `NEXT_PUBLIC_` variable.
 
-## Setup
+## Quality commands
 
-1. Install dependencies: `pnpm install`
-2. Copy `.env.example` to `.env.local`
-3. Add the Supabase project URL and publishable key
-4. Apply the migration through Supabase CLI or the connected Supabase tooling
-5. Start development: `pnpm dev`
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
 
-## Environment variables
+`test:e2e` runs a production smoke check against Vercel by default; override it with `ORBIT_BASE_URL`. Final release QA covers keyboard commands, issue creation/editing, board/list switching, filters, drag-and-drop, 404, console errors and responsive widths from 320px to 1920px.
 
-| Name | Visibility | Purpose |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public | RLS-scoped browser key |
+## Portfolio views
 
-Never expose a Supabase secret or service-role key in a `NEXT_PUBLIC_` variable.
+- **Board:** cycle metrics, filters and five-stage workflow
+- **Issue detail:** editing, properties, subtasks and activity
+- **Command menu:** keyboard-first navigation and actions
+- **Mobile:** focused navigation drawer and scrollable planning surfaces
 
-## Quality checks
+### Board
 
-- `pnpm lint` — static analysis and type-aware linting
-- `pnpm build` — production/Cloudflare Worker build
-- Browser QA covers responsive navigation, themes, issue creation, search, dialogs and console errors
+![Orbit board](public/screenshots/board.png)
+
+### Issue detail and command menu
+
+| Issue detail | Command menu |
+| --- | --- |
+| ![Orbit issue detail](public/screenshots/issue.png) | ![Orbit command menu](public/screenshots/command.png) |
+
+### Mobile
+
+<img src="public/screenshots/mobile.png" alt="Orbit mobile workspace" width="375" />
 
 ## Deployment
 
-The project is configured for OpenAI Sites through `.openai/hosting.json`. It emits Cloudflare Worker-compatible ESM output through the Sites Vite plugin.
-
-## Roadmap
-
-- Connect a dedicated Supabase project and apply the versioned schema
-- Add authenticated onboarding and workspace invitations
-- Persist issue mutations and uploads with optimistic rollback
-- Add Playwright regression specs and visual snapshots
-- Add project timeline editing, cycle planning and granular bulk actions
+Vercel is the canonical production host. OpenAI Sites remains a secondary showcase build. Security headers are declared centrally in `next.config.ts`, and the social preview is rendered at `/opengraph-image`.
