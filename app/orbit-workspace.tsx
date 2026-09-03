@@ -61,6 +61,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command';
 import { toast, Toaster } from '@/components/ui/toast';
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
 
 type Status = 'Backlog' | 'Todo' | 'In Progress' | 'Review' | 'Done';
 type Issue = {
@@ -202,6 +203,28 @@ function Avatar({
     </span>
   );
 }
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M21.6 12.2c0-.7-.1-1.5-.2-2.2H12v4h5.4a4.6 4.6 0 0 1-2 3v2.6h3.3c1.9-1.8 2.9-4.4 2.9-7.4Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 22c2.7 0 5-.9 6.7-2.4L15.4 17c-.9.6-2.1 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3v2.7A10 10 0 0 0 12 22Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M6.4 13.9A6 6 0 0 1 6.1 12c0-.7.1-1.3.3-1.9V7.4H3A10 10 0 0 0 3 16.6l3.4-2.7Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 6c1.5 0 2.8.5 3.9 1.5l2.9-2.8A9.8 9.8 0 0 0 12 2a10 10 0 0 0-9 5.4l3.4 2.7C7.2 7.8 9.4 6 12 6Z"
+      />
+    </svg>
+  );
+}
 function Priority({ value }: { value: Issue['priority'] }) {
   const bars = { Low: 1, Medium: 2, High: 3, Urgent: 4 }[value];
   return (
@@ -337,8 +360,14 @@ export function OrbitWorkspace() {
     [title, setTitle] = useState(''),
     [filterOpen, setFilterOpen] = useState(false),
     [statusFilter, setStatusFilter] = useState<Status | 'All'>('All'),
-    [assigneeFilter, setAssigneeFilter] = useState('All');
+    [assigneeFilter, setAssigneeFilter] = useState('All'),
+    [authOpen, setAuthOpen] = useState(false),
+    [authLoading, setAuthLoading] = useState(false),
+    [account, setAccount] = useState<{ name: string; email: string } | null>(
+      null,
+    );
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
+  const supabase = useMemo(() => createSupabaseClient(), []);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor),
@@ -364,6 +393,42 @@ export function OrbitWorkspace() {
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
   }, [dark]);
+  useEffect(() => {
+    if (!supabase) return;
+    const syncAccount = async () => {
+      const { data } = await supabase.auth.getUser();
+      const user = data.user;
+      setAccount(
+        user
+          ? {
+              name:
+                user.user_metadata.full_name ??
+                user.user_metadata.name ??
+                user.email?.split('@')[0] ??
+                'Orbit member',
+              email: user.email ?? '',
+            }
+          : null,
+      );
+    };
+    void syncAccount();
+    const { data } = supabase.auth.onAuthStateChange(() => void syncAccount());
+    return () => data.subscription.unsubscribe();
+  }, [supabase]);
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('auth');
+    if (!result) return;
+    toast.add({
+      title:
+        result === 'success' ? 'Welcome to Orbit' : 'Google sign-in failed',
+      description:
+        result === 'success'
+          ? 'Your Google account is now connected.'
+          : 'Please try again or continue exploring the demo.',
+      type: result === 'success' ? 'success' : 'error',
+    });
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
   const filtered = useMemo(
     () =>
       issues.filter((i) => {
@@ -465,6 +530,40 @@ export function OrbitWorkspace() {
         'This portfolio demo keeps the experience local and reversible.',
       type: 'success',
     });
+  const signInWithGoogle = async () => {
+    if (!supabase) {
+      toast.add({
+        title: 'Google sign-in is not configured yet',
+        description:
+          'Add the Supabase publishable credentials to enable OAuth. The demo remains available.',
+        type: 'error',
+      });
+      return;
+    }
+    setAuthLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (error) {
+      setAuthLoading(false);
+      toast.add({
+        title: 'Could not start Google sign-in',
+        description: error.message,
+        type: 'error',
+      });
+    }
+  };
+  const signOut = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setAuthOpen(false);
+    toast.add({
+      title: 'Signed out',
+      description: 'You can keep exploring Orbit in demo mode.',
+      type: 'success',
+    });
+  };
   const heading =
     view === 'board'
       ? 'Build the next orbit'
@@ -587,7 +686,24 @@ export function OrbitWorkspace() {
                 <Bell />
                 <i />
               </button>
-              <Avatar initials="VK" />
+              <button
+                className="account-trigger"
+                onClick={() => setAuthOpen(true)}
+                aria-label={account ? `Account: ${account.name}` : 'Sign in'}
+              >
+                <Avatar
+                  initials={
+                    account
+                      ? account.name
+                          .split(' ')
+                          .map((part) => part[0])
+                          .join('')
+                          .slice(0, 2)
+                          .toUpperCase()
+                      : 'VK'
+                  }
+                />
+              </button>
             </div>
           </header>
           <section className="content">
@@ -874,6 +990,40 @@ export function OrbitWorkspace() {
                 Create issue <kbd>↵</kbd>
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={authOpen} onOpenChange={setAuthOpen}>
+          <DialogContent className="auth-dialog">
+            <div className="auth-orbit-mark">O</div>
+            <DialogHeader>
+              <DialogTitle>
+                {account
+                  ? `Welcome, ${account.name}`
+                  : 'Join your team in Orbit'}
+              </DialogTitle>
+              <DialogDescription>
+                {account
+                  ? account.email
+                  : 'Create your account or sign in securely with Google. You can also keep exploring this portfolio demo.'}
+              </DialogDescription>
+            </DialogHeader>
+            {account ? (
+              <Button variant="outline" onClick={signOut}>
+                Sign out
+              </Button>
+            ) : (
+              <button
+                className="google-auth-button"
+                onClick={signInWithGoogle}
+                disabled={authLoading}
+              >
+                <GoogleMark />
+                {authLoading ? 'Opening Google…' : 'Continue with Google'}
+              </button>
+            )}
+            <p className="auth-demo-note">
+              Portfolio demo · no account required to explore
+            </p>
           </DialogContent>
         </Dialog>
         <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>

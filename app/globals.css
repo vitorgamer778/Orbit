@@ -335,6 +335,74 @@ button {
   top: 6px;
   right: 7px;
 }
+.account-trigger {
+  padding: 0;
+  cursor: pointer;
+}
+.account-trigger .avatar {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.auth-dialog {
+  gap: 18px;
+  padding: 28px;
+  text-align: center;
+}
+.auth-dialog [data-slot='dialog-header'] {
+  align-items: center;
+}
+.auth-orbit-mark {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  border-radius: 13px;
+  color: white;
+  font-size: 20px;
+  font-weight: 750;
+  background: linear-gradient(145deg, #8885ff, #655be7);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--primary) 32%, transparent);
+}
+.google-auth-button {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--foreground);
+  background: var(--panel);
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+.google-auth-button:hover {
+  background: var(--hover);
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+}
+.google-auth-button:active {
+  transform: scale(0.985);
+}
+.google-auth-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.google-auth-button svg {
+  width: 18px;
+  height: 18px;
+}
+.auth-demo-note {
+  margin: -3px 0 0;
+  color: var(--subtle);
+  font-size: 11px;
+}
 .avatar {
   display: inline-grid;
   place-items: center;
