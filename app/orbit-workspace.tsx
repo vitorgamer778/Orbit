@@ -61,7 +61,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command';
 import { toast, Toaster } from '@/components/ui/toast';
-import { createClient as createSupabaseClient } from '@/lib/supabase/client';
+import { signIn, signOut, useSession } from 'next-auth/react';
 
 type Status = 'Backlog' | 'Todo' | 'In Progress' | 'Review' | 'Done';
 type Issue = {
@@ -362,12 +362,18 @@ export function OrbitWorkspace() {
     [statusFilter, setStatusFilter] = useState<Status | 'All'>('All'),
     [assigneeFilter, setAssigneeFilter] = useState('All'),
     [authOpen, setAuthOpen] = useState(false),
-    [authLoading, setAuthLoading] = useState(false),
-    [account, setAccount] = useState<{ name: string; email: string } | null>(
-      null,
-    );
+    [authLoading, setAuthLoading] = useState(false);
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
-  const supabase = useMemo(() => createSupabaseClient(), []);
+  const { data: session } = useSession();
+  const account = session?.user
+    ? {
+        name:
+          session.user.name ??
+          session.user.email?.split('@')[0] ??
+          'Orbit member',
+        email: session.user.email ?? '',
+      }
+    : null;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor),
@@ -393,42 +399,6 @@ export function OrbitWorkspace() {
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
   }, [dark]);
-  useEffect(() => {
-    if (!supabase) return;
-    const syncAccount = async () => {
-      const { data } = await supabase.auth.getUser();
-      const user = data.user;
-      setAccount(
-        user
-          ? {
-              name:
-                user.user_metadata.full_name ??
-                user.user_metadata.name ??
-                user.email?.split('@')[0] ??
-                'Orbit member',
-              email: user.email ?? '',
-            }
-          : null,
-      );
-    };
-    void syncAccount();
-    const { data } = supabase.auth.onAuthStateChange(() => void syncAccount());
-    return () => data.subscription.unsubscribe();
-  }, [supabase]);
-  useEffect(() => {
-    const result = new URLSearchParams(window.location.search).get('auth');
-    if (!result) return;
-    toast.add({
-      title:
-        result === 'success' ? 'Welcome to Orbit' : 'Google sign-in failed',
-      description:
-        result === 'success'
-          ? 'Your Google account is now connected.'
-          : 'Please try again or continue exploring the demo.',
-      type: result === 'success' ? 'success' : 'error',
-    });
-    window.history.replaceState({}, '', window.location.pathname);
-  }, []);
   const filtered = useMemo(
     () =>
       issues.filter((i) => {
@@ -531,32 +501,20 @@ export function OrbitWorkspace() {
       type: 'success',
     });
   const signInWithGoogle = async () => {
-    if (!supabase) {
-      toast.add({
-        title: 'Google sign-in is not configured yet',
-        description:
-          'Add the Supabase publishable credentials to enable OAuth. The demo remains available.',
-        type: 'error',
-      });
-      return;
-    }
     setAuthLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (error) {
+    try {
+      await signIn('google', { redirectTo: '/' });
+    } catch {
       setAuthLoading(false);
       toast.add({
         title: 'Could not start Google sign-in',
-        description: error.message,
+        description: 'Please try again or continue exploring the demo.',
         type: 'error',
       });
     }
   };
-  const signOut = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
     setAuthOpen(false);
     toast.add({
       title: 'Signed out',
@@ -1008,7 +966,7 @@ export function OrbitWorkspace() {
               </DialogDescription>
             </DialogHeader>
             {account ? (
-              <Button variant="outline" onClick={signOut}>
+              <Button variant="outline" onClick={handleSignOut}>
                 Sign out
               </Button>
             ) : (

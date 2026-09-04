@@ -403,6 +403,32 @@ button {
   color: var(--subtle);
   font-size: 11px;
 }
+.legal-page {
+  width: min(680px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 64px 0 96px;
+  color: var(--foreground);
+}
+.legal-page > a {
+  color: var(--subtle);
+  font-size: 13px;
+}
+.legal-page .auth-orbit-mark {
+  margin: 48px 0 24px;
+}
+.legal-page h1 {
+  margin: 0 0 8px;
+  font-size: clamp(32px, 6vw, 52px);
+  letter-spacing: -0.045em;
+}
+.legal-page h2 {
+  margin: 34px 0 8px;
+  font-size: 17px;
+}
+.legal-page p {
+  color: var(--subtle);
+  line-height: 1.75;
+}
 .avatar {
   display: inline-grid;
   place-items: center;

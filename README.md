@@ -13,7 +13,7 @@ Orbit is a portfolio-grade project operations workspace: fast enough for daily i
 - Projects, roadmap, notification inbox, themes and mobile navigation
 - Real cycle completion and point totals derived from issue data
 - Custom social card, canonical metadata, 404 and production security headers
-- Optional Google sign-up/sign-in through Supabase Auth, with a no-account demo path
+- Optional Google sign-up/sign-in through Auth.js, with a no-account demo path
 
 ## Stack and architecture
 
@@ -30,7 +30,7 @@ pnpm dev
 
 Optional Supabase variables are documented in `.env.example`. Never expose a service-role key through a `NEXT_PUBLIC_` variable.
 
-To enable Google authentication, create or select the Orbit Supabase project, enable the Google provider in **Authentication → Providers**, add `https://orbit-project-ops.vercel.app/auth/callback` to the allowed redirect URLs, and configure the two public variables in Vercel. The Google OAuth callback shown by Supabase must also be registered in Google Cloud.
+Google authentication uses Auth.js with JWT sessions. Register `https://orbit-project-ops.vercel.app/api/auth/callback/google` as an authorized Google OAuth redirect URI, then configure `AUTH_SECRET`, `AUTH_GOOGLE_ID`, and `AUTH_GOOGLE_SECRET` in Vercel. No OAuth secret belongs in source control.
 
 ## Quality commands
 
