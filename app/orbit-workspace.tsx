@@ -78,10 +78,10 @@ type Issue = {
 type View = 'board' | 'list' | 'roadmap' | 'projects' | 'inbox';
 const columns: Status[] = ['Backlog', 'Todo', 'In Progress', 'Review', 'Done'];
 const colors: Record<string, string> = {
-  AM: '#df7f56',
-  VK: '#6f78e8',
-  LS: '#42a888',
-  NR: '#bd6ecf',
+  AM: '#ad4b27',
+  VK: '#505ab8',
+  LS: '#247458',
+  NR: '#91479e',
 };
 const seed: Issue[] = [
   {
@@ -258,6 +258,14 @@ function IssueCard({
       onClick={() => !d.isDragging && onOpen(issue)}
       {...d.listeners}
       {...d.attributes}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && !d.isDragging) {
+          event.preventDefault();
+          onOpen(issue);
+        } else {
+          d.listeners?.onKeyDown?.(event);
+        }
+      }}
     >
       <div className="issue-meta">
         <span>{issue.id}</span>
@@ -325,7 +333,7 @@ function BoardColumn({
           <i
             className={`status-dot status-${status.replace(' ', '-').toLowerCase()}`}
           />
-          <strong>{status}</strong>
+          <h2>{status}</h2>
           <span>{issues.length}</span>
         </div>
         <button onClick={onAdd} aria-label={`Add issue to ${status}`}>
@@ -535,6 +543,9 @@ export function OrbitWorkspace() {
         )[view];
   return (
     <Toaster>
+      <a className="orbit-skip" href="#orbit-content">
+        Skip to workspace
+      </a>
       <div className="app-shell">
         <aside
           className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobile ? 'mobile-open' : ''}`}
@@ -542,7 +553,6 @@ export function OrbitWorkspace() {
           <button
             className="workspace"
             onClick={() => demoNotice('Workspace switcher')}
-            aria-label="Switch workspace"
           >
             <div className="orbit-mark">
               <i />
@@ -557,7 +567,7 @@ export function OrbitWorkspace() {
             )}
             <ChevronDown className="chevron" />
           </button>
-          <nav>
+          <nav aria-label="Workspace navigation">
             {nav.map((n) => (
               <button
                 key={n.label}
@@ -623,6 +633,7 @@ export function OrbitWorkspace() {
             </div>
             <button
               className="search-trigger"
+              aria-label="Search or jump to… ⌘ K"
               onClick={() => setCommands(true)}
             >
               <Search />
@@ -647,24 +658,46 @@ export function OrbitWorkspace() {
               <button
                 className="account-trigger"
                 onClick={() => setAuthOpen(true)}
-                aria-label={account ? `Account: ${account.name}` : 'Sign in'}
+                aria-label={
+                  account
+                    ? `${account.name
+                        .split(' ')
+                        .map((part) => part[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()} Account: ${account.name}`
+                    : 'VK Sign in'
+                }
               >
-                <Avatar
-                  initials={
-                    account
-                      ? account.name
-                          .split(' ')
-                          .map((part) => part[0])
-                          .join('')
-                          .slice(0, 2)
-                          .toUpperCase()
-                      : 'VK'
-                  }
-                />
+                <span aria-hidden="true">
+                  <Avatar
+                    initials={
+                      account
+                        ? account.name
+                            .split(' ')
+                            .map((part) => part[0])
+                            .join('')
+                            .slice(0, 2)
+                            .toUpperCase()
+                        : 'VK'
+                    }
+                  />
+                </span>
               </button>
             </div>
           </header>
-          <section className="content">
+          <section
+            className="content"
+            id="orbit-content"
+            tabIndex={-1}
+            aria-label="Workspace content"
+          >
+            <div className="workspace-notice">
+              <CircleDot aria-hidden="true" size={14} />
+              <span>
+                Portfolio demo. Tasks and changes stay in this browser session.
+              </span>
+            </div>
             <div className="page-heading">
               <div>
                 <div className="eyebrow">
@@ -693,13 +726,19 @@ export function OrbitWorkspace() {
               <>
                 <div className="cycle-strip">
                   <div className="cycle-orbit">
+                    <progress
+                      className="sr-only"
+                      aria-label="Cycle completion"
+                      max={100}
+                      value={progress}
+                    />
                     <span>{progress}%</span>
                   </div>
                   <div>
                     <span>Cycle 08</span>
                     <strong>Momentum</strong>
                     <small>
-                      Sep 1 – Sep 14 · {done} of {issues.length} complete
+                      Sample cycle · {done} of {issues.length} complete
                     </small>
                   </div>
                   <div className="cycle-metrics">
@@ -708,8 +747,14 @@ export function OrbitWorkspace() {
                       <span>points</span>
                     </div>
                     <div>
-                      <b>4d</b>
-                      <span>remaining</span>
+                      <b>
+                        {
+                          issues.filter(
+                            (issue) => issue.status === 'In Progress',
+                          ).length
+                        }
+                      </b>
+                      <span>in progress</span>
                     </div>
                     <div className="members">
                       <Avatar initials="VK" small />

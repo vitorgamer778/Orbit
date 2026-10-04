@@ -10,7 +10,7 @@
   --color-popover: var(--panel);
   --color-popover-foreground: var(--foreground);
   --color-primary: var(--primary);
-  --color-primary-foreground: white;
+  --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--muted);
   --color-secondary-foreground: var(--foreground);
   --color-muted: var(--muted);
@@ -28,28 +28,30 @@
   --radius-xl: 1rem;
 }
 :root {
-  --background: #f7f7f9;
+  --background: #f4f7fb;
   --panel: #fff;
   --card: #fff;
   --foreground: #17171b;
-  --subtle: #73737d;
+  --subtle: #596779;
   --muted: #f0f0f3;
   --border: #e4e4e9;
-  --primary: #5b5ee8;
+  --primary: #245cce;
+  --primary-foreground: #fff;
   --sidebar: #f1f1f4;
   --hover: #e9e9ee;
   --shadow: 0 12px 32px rgba(20, 20, 30, 0.08);
 }
 .dark {
-  --background: #0c0d10;
-  --panel: #15161b;
-  --card: #191a20;
+  --background: #101722;
+  --panel: #151f2c;
+  --card: #1b2736;
   --foreground: #f4f4f6;
   --subtle: #91919b;
   --muted: #202127;
   --border: #292a31;
-  --primary: #7779ff;
-  --sidebar: #111217;
+  --primary: #9dbbff;
+  --primary-foreground: #102342;
+  --sidebar: #121c29;
   --hover: #1b1c22;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
 }
@@ -71,6 +73,9 @@ input {
 button {
   color: inherit;
 }
+button[data-slot='button'][data-variant='default'] {
+  color: var(--primary-foreground);
+}
 .app-shell {
   display: flex;
   height: 100dvh;
@@ -82,6 +87,52 @@ button {
       transparent 34%
     ),
     var(--background);
+}
+.orbit-skip {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 100;
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  transform: translateY(-200%);
+}
+.orbit-skip:focus {
+  transform: none;
+}
+.workspace-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 18px;
+  color: var(--subtle);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.workspace-notice svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.content:focus {
+  outline-offset: -4px;
+}
+.issue-card {
+  transition:
+    border-color 0.16s,
+    box-shadow 0.16s,
+    background 0.16s;
+}
+.issue-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.cycle-strip {
+  border-left: 3px solid var(--primary);
+}
+.cycle-orbit {
+  color: var(--primary);
 }
 .sidebar {
   width: 224px;
@@ -639,7 +690,8 @@ button {
   gap: 7px;
   font-size: 11px;
 }
-.board-column > header strong {
+.board-column > header h2 {
+  margin: 0;
   font-size: 11px;
 }
 .board-column > header span {
